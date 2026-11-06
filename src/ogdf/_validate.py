@@ -45,7 +45,9 @@ _PROPERTIES: dict[str, tuple[str, Callable[[Any], bool]]] = {
         _core.represents_comb_embedding,
     ),
     "acyclic": ("acyclic when edges are read as directed", _core.is_acyclic),
-    "forest": ("a tree or forest", _core.is_forest),
+    # TreeLayout checks the undirected graph; is_forest tests for rooted
+    # (directed) forests and rejects inputs TreeLayout draws.
+    "forest": ("a tree or forest", _core.is_acyclic_undirected),
     "tree": ("a tree (connected and acyclic)", _core.is_tree),
     "bipartite": ("bipartite", _core.is_bipartite),
 }
@@ -55,19 +57,19 @@ _PROPERTIES: dict[str, tuple[str, Callable[[Any], bool]]] = {
 # violations in the order a caller would hit them.
 _REQUIREMENTS: dict[str, tuple[str, ...]] = {
     # Planar grid layouts.
-    "SchnyderLayout": ("min_nodes_3", "simple", "planar"),
-    "FPPLayout": ("min_nodes_3", "simple", "planar"),
+    "SchnyderLayout": ("min_nodes_3", "simple", "planar", "connected"),
+    "FPPLayout": ("min_nodes_3", "simple", "planar", "connected"),
     "PlanarStraightLayout": ("min_nodes_3", "simple", "planar"),
     "PlanarDrawLayout": ("min_nodes_3", "simple", "planar"),
-    "MixedModelLayout": ("min_nodes_3", "simple", "planar"),
+    "MixedModelLayout": ("min_nodes_3", "simple", "planar", "connected"),
     "TutteLayout": ("min_nodes_3", "planar", "triconnected"),
     # Tree layouts.
     "TreeLayout": ("forest",),
     "RadialTreeLayout": ("tree",),
     "BalloonLayout": ("connected",),
     # Upward drawings for DAGs.
-    "DominanceLayout": ("non_empty", "acyclic"),
-    "VisibilityLayout": ("non_empty", "acyclic"),
+    "DominanceLayout": ("non_empty", "acyclic", "connected"),
+    "VisibilityLayout": ("non_empty", "acyclic", "connected"),
     # Force-directed.
     "SpringEmbedderKK": ("connected",),
     # Algorithms.

@@ -5,6 +5,9 @@
 // actually loaded rather than what the source tree currently says.
 
 #include "bindings.h"
+#include "errors.h"
+
+#include <cstdint>
 
 #include <nanobind/stl/string.h>
 
@@ -71,13 +74,27 @@ void register_meta(nb::module_& m) {
     // OGDF draws all randomness from one process-wide engine, so seeding is a
     // global operation rather than a per-call argument. `ogdf.set_seed()` and
     // `ogdf.seeded()` wrap these; see the reproducibility docs.
-    m.def("seed_random_engine", [](int seed) { ogdf::setSeed(seed); }, "seed"_a,
+    // draw_random_seed returns [0, 2**32) but OGDF's setSeed takes an int, so
+    // accept both ranges and pass the value on modulo 2**32.
+    m.def("seed_random_engine",
+          [](long long seed) {
+              if (seed < -(1LL << 31) || seed >= (1LL << 32)) {
+                  throw ogdfpy::PreconditionError(
+                      "seed must be in [-2**31, 2**32)");
+              }
+              ogdf::setSeed(static_cast<int>(static_cast<std::uint32_t>(seed)));
+          },
+          "seed"_a,
           "Seed OGDF's process-wide random engine. Every randomized generator, "
           "layout, and heuristic draws from it, so this makes them "
           "reproducible. Prefer `ogdf.set_seed()` / `ogdf.seeded()`, which "
           "wrap this and record the seed for `ogdf.provenance()`.");
+    // randomSeed() computes 7 * engine() + 3 in uint_fast32_t, which is 32 bits
+    // under libc++ but 64 under libstdc++, so on Linux it exceeds 2**32 and
+    // seed_random_engine rejects it. Reduce modulo 2**32 on every platform.
     m.def("draw_random_seed", []() {
-              return static_cast<long long>(ogdf::randomSeed());
+              return static_cast<long long>(
+                  static_cast<std::uint32_t>(ogdf::randomSeed()));
           },
           "Draw a fresh seed value from OGDF's engine. Useful to pick a seed, "
           "record it, and then set it - the engine has no way to report the "

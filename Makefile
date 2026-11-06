@@ -6,8 +6,13 @@
 
 .PHONY: all bootstrap sync build rebuild test demos lint lint-check format format-check         typecheck qa clean distclean wheel sdist dist check publish-test         publish upgrade coverage coverage-html docs docs-serve docs-deploy release help
 
-# Prebuilt OGDF static library; its presence marks a completed bootstrap.
+# Prebuilt OGDF static library; its presence marks a completed bootstrap. MSVC
+# builds name it OGDF.lib and put it under the multi-config Release/ dir.
+ifeq ($(OS),Windows_NT)
+OGDF_LIB := thirdparty/ogdf/build/Release/OGDF.lib
+else
 OGDF_LIB := thirdparty/ogdf/build/libOGDF.a
+endif
 
 # Default target
 all: build
@@ -43,23 +48,23 @@ demos:
 
 # Lint with ruff (applies fixes)
 lint:
-	@uv run ruff check --fix src/ tests/
+	@uv run ruff check --fix src/ tests/ scripts/
 
 # Lint with ruff (check only, no fixes)
 lint-check:
-	@uv run ruff check src/ tests/
+	@uv run ruff check src/ tests/ scripts/
 
 # Format with ruff
 format:
-	@uv run ruff format src/ tests/
+	@uv run ruff format src/ tests/ scripts/
 
 # Check formatting without modifying files
 format-check:
-	@uv run ruff format --check src/ tests/
+	@uv run ruff format --check src/ tests/ scripts/
 
-# Type check with mypy
+# Type check with mypy (same scope as CI)
 typecheck:
-	@uv run mypy src/ogdf
+	@uv run mypy src/ogdf tests/ scripts/
 
 # Run a full quality assurance check (non-mutating; mirrors CI)
 qa: lint-check format-check typecheck test
@@ -117,7 +122,7 @@ docs-deploy: demos
 # Create a release (bump version, tag, push)
 release:
 	@echo "Current version: $$(grep '^version' pyproject.toml | head -1)"
-	@read -p "New version: " version; 	sed "s/^version = .*/version = \"$$version\"/" pyproject.toml > pyproject.toml.tmp && mv pyproject.toml.tmp pyproject.toml; 	sed -E "s/(package version *: ).*/\1$$version/; s/('package_version': ')[^']*'/\1$$version'/" docs/getting-started.md > docs/getting-started.md.tmp && mv docs/getting-started.md.tmp docs/getting-started.md; 	git add pyproject.toml docs/getting-started.md; 	git commit -m "Bump version to $$version"; 	git tag -a "v$$version" -m "Release $$version"; 	echo "Tagged v$$version. Run 'git push && git push --tags' to publish."
+	@read -p "New version: " version; 	sed "s/^version = .*/version = \"$$version\"/" pyproject.toml > pyproject.toml.tmp && mv pyproject.toml.tmp pyproject.toml; 	sed -E "s/(package version *: ).*/\1$$version/; s/('package_version': ')[^']*'/\1$$version'/" docs/getting-started.md > docs/getting-started.md.tmp && mv docs/getting-started.md.tmp docs/getting-started.md; 	git add pyproject.toml docs/getting-started.md; 	git commit -m "Bump version to $$version"; 	git tag -a "$$version" -m "Release $$version"; 	echo "Tagged $$version. Run 'git push && git push --tags' to publish."
 
 # Clean build artifacts
 clean:
@@ -126,13 +131,13 @@ clean:
 	@rm -rf *.egg-info/
 	@rm -rf src/*.egg-info/
 	@rm -rf .pytest_cache/
-	@find . -name "*.so" -delete
-	@find . -name "*.pyd" -delete
+	@find src -name "*.so" -delete
+	@find src -name "*.pyd" -delete
 	@find . -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
 
-# Clean everything including CMake cache
+# Also remove the docs site and the OGDF checkout (the next build re-bootstraps)
 distclean: clean
-	@rm -rf CMakeCache.txt CMakeFiles/
+	@rm -rf site/ thirdparty/ogdf/
 
 # Show help
 help:
@@ -164,5 +169,5 @@ help:
 	@echo "  docs-deploy  - Deploy the docs to GitHub Pages"
 	@echo "  release      - Bump version, tag, and prepare release"
 	@echo "  clean        - Remove build artifacts"
-	@echo "  distclean    - Remove all generated files"
+	@echo "  distclean    - clean, plus the docs site and the OGDF checkout"
 	@echo "  help         - Show this help message"

@@ -80,13 +80,9 @@ Highest-value gaps given the drawing + planarity focus and the common-algorithm 
 
 - [ ] 3D coordinates (`z`)
 
-- [ ] `ClusterGraph` / `ClusterGraphAttributes`
-
 - [ ] `GraphCopy` / `GraphReduction`
 
 - [ ] Combinatorial embedding / dual graph
-
-- [ ] Hypergraphs
 
 ## Layout algorithms
 
@@ -194,7 +190,7 @@ Highest-value gaps given the drawing + planarity focus and the common-algorithm 
 
 ### Spanning trees, flow, cut
 
-- [x] `min_spanning_tree` (Prim), `make_minimum_spanning_tree` (Kruskal)
+- [x] `min_spanning_tree` (Kruskal; a spanning forest on disconnected input), `make_minimum_spanning_tree` (Kruskal)
 
 - [x] `max_flow` (Goldberg-Tarjan)
 
@@ -300,8 +296,7 @@ Highest-value gaps given the drawing + planarity focus and the common-algorithm 
 
 ## Python layer
 
-Not bindings of OGDF classes, but the API that makes the binding usable from
-Python. Covered in depth in [Getting Started](getting-started.md).
+Not bindings of OGDF classes, but the API that makes the binding usable from Python. Covered in depth in [Getting Started](getting-started.md).
 
 ### Diagnostics
 
@@ -379,8 +374,6 @@ Python. Covered in depth in [Getting Started](getting-started.md).
 
 - [x] `layout(graph, algorithm=FMMMLayout, **options)` - preconditions, seeding, the layout, packing, and fit-to-box in one call. The algorithm is a class by default so it stays type-checked; a string is accepted for config-driven use, and `layout_names()` lists what resolves
 
-- [ ] A serializable "layout recipe" that replays a drawing from graph + algorithm + options + seed
-
 ### Not yet provided
 
 - [ ] Themes, palettes, and style-by-attribute helpers
@@ -393,7 +386,7 @@ Python. Covered in depth in [Getting Started](getting-started.md).
 
 Whole OGDF modules that are out of scope for the current curated subset:
 
-- [ ] Clustered graphs and cluster planarity / layout
+- [ ] Clustered graphs (`ClusterGraph`, `ClusterGraphAttributes`) and cluster planarity / layout
 
 - [ ] UML diagram support
 
@@ -403,8 +396,8 @@ Whole OGDF modules that are out of scope for the current curated subset:
 
 - [ ] Simultaneous embedding (SEFE) / SyncPlan
 
-- [ ] Augmentation (planarity / connectivity augmentation)
+- [ ] Planarity augmentation (connectivity augmentation is bound: `make_connected`, `make_biconnected`)
 
-- [ ] Rectangle / component packing
+- [ ] General rectangle packing (connected components are packed by `pack_components` / `tile_components`)
 
 - [ ] LP solver (COIN) interface

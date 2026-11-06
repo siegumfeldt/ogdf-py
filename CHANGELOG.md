@@ -6,7 +6,94 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.6.1]
+
+### Security
+
+- The OGDF bootstrap verifies that the pinned tag resolves to the commit in `scripts/ogdf-commit.txt` and refuses the clone otherwise. A moved tag, or an `OGDF_REPO` pointing elsewhere, would have changed the code statically linked into published wheels without changing any cache key. An overridden `OGDF_TAG` is checked against the tag instead.
+
+- `--archive` / `OGDF_ARCHIVE` tarballs are extracted with the `data` filter, or an equivalent member check on interpreters without it. On Python 3.10-3.13 a crafted archive could write outside the extraction directory.
+
+### Changed
+
+- Build requirements are bounded at the next major version: `nanobind>=3.0,<4`, `scikit-build-core>=0.12.2,<2`. A new major could break sdist builds of an already released version. Builds were already resolving nanobind 3.1.0, so the floor matches what is tested.
+
+- Wheels no longer contain the C++ binding sources (about 130 KB), and the sdist no longer contains `.github/` or `TODO.md`. PyPI shows repository, documentation, changelog and issue links, and the keywords describe the package.
+
+- `shortest_paths` raises `PreconditionError` when it would use Bellman-Ford with `directed=False`, the default. `algorithm="auto"` picks Bellman-Ford when an `EdgeArrayInt` holds a negative length, and it used to switch to directed semantics silently: on `a->b, c->b` with one negative length, `c` went from distance 2 to unreachable. Pass `directed=True`.
+
+- `SpringEmbedderKK`, `StressMinimization` and `PivotMDS` count as layouts. `layout(g, "SpringEmbedderKK")` raised "unknown layout", and `about()` reported 19 layouts and 27 types instead of 22 and 24. Layouts are now the classes with a `call` method rather than those named `*Layout`.
+
 ### Fixed
+
+- Wheels are built for the instruction-set baseline (`-march=x86-64` / `-march=armv8-a`). OGDF's CMake defaults to `-march=native` on GCC and Clang, so 0.5.1 and 0.6.0 wheels contain instructions of the CI runner that built them: the 0.6.0 manylinux and macOS x86_64 wheels use AVX2 and FMA, and the manylinux aarch64 wheel uses SVE. They can crash with an illegal instruction on CPUs without those extensions, which includes most aarch64 machines without SVE (for example AWS Graviton2 and Raspberry Pi). macOS arm64 and Windows wheels were not affected. The same default made a CI cache built on one runner crash another. `OGDF_ARCH=native` restores the old behaviour for local builds.
+
+- `validate("TreeLayout", g)`, and so `layout(g, TreeLayout)`, rejected undirected forests such as `0->1, 2->1` that `TreeLayout` draws. The `"forest"` property tested for rooted forests; it now tests for an undirected cycle, matching the binding. `graph_report()["forest"]` changes with it.
+
+- `layout(seed=...)` and `compare_layouts(seed=...)` now update `provenance()["seed"]`; they seeded the engine without recording it.
+
+- `separation_pair` raises `InvalidGraphError` on a graph that is not biconnected. It returned `None`, which means "triconnected", for a path.
+
+- OGDF's own exceptions reach Python as `AlgorithmError` (for `AlgorithmFailureException`) or `OGDFError`. `ogdf::Exception` derives privately from `std::exception`, so nanobind's fallback could not catch it. `maximum_weight_matching` rejects self-loops with `InvalidGraphError`; Blossom V raised a bare `RuntimeError`.
+
+- `fill_node_array` / `fill_edge_array` with `keys` skip elements missing from `keys`, as documented; they raised `KeyError`.
+
+- The bootstrap re-fetches an OGDF checkout that no longer matches the pin, for example after a tag bump. It reused the old source and compiled the new tag into `ogdf.about()`, which then reported the wrong OGDF version. Sources supplied with `--archive` or `--source-dir` are used as they are.
+
+- `make typecheck` (and so `make qa`) covers the same paths as CI; ruff and mypy now also cover `scripts/`, which the release path runs. `make distclean` removes the docs site and the OGDF checkout, as its help says. `make build` on Windows no longer re-bootstraps every run (the library is `OGDF.lib` there).
+
+- CI builds the docs with `mkdocs build --strict`, and runs on Ubuntu and macOS with Python 3.10 and 3.14 in addition to Ubuntu with 3.13.
+
+- `docs/coverage.md` no longer lists packing and connectivity augmentation as excluded while marking them bound, or lists three items twice. Snippets in `docs/getting-started.md` and `docs/metrics.md` run top to bottom.
+
+- `fit_to_box` rejects NaN and infinite sizes and margins.
+
+- `PivotMDS` and `StressMinimization` compute 2D layouts even when the `GraphAttributes` has the `threeD` flag, which `ALL_ATTRIBUTES` and `layout()` set. The bindings expose only `x` and `y`. For a graph whose distances fit in a plane, such as a triangle, the third eigenvalue is 0, and OGDF's unbounded power iteration in `PivotMDS` never converged under MSVC: the Windows test run hung.
+
+- CI jobs time out after 30 minutes (wheel jobs after 60) instead of GitHub's 6 hours, and pytest dumps the stack of a test stuck for 5 minutes. An infinite width passed the positivity check and left every coordinate at `+-1.8e308`.
+
+## [0.6.0]
+
+### Added
+
+- Pushing a release tag now creates the GitHub release, with all wheels, the sdist, and the matching CHANGELOG section as notes. Tag pushes no longer publish to TestPyPI or PyPI; a manual run of `build-publish.yml` does, with the `testpypi` and `pypi` inputs (both off by default). The README now gives `pip install ogdf-py`.
+
+- The project is now licensed under the GPL, version 2 or 3, with the same linking exception for COIN-OR and Tulip that OGDF grants; it was MIT. Every wheel statically links OGDF, which is GPL v2/v3, so the wheels were never distributable as MIT-only. `pyproject.toml` declares `GPL-2.0-only OR GPL-3.0-only`. Released versions keep their MIT licence.
+
+- Wheels ship OGDF's licence texts (`LICENSE.txt`, GPL v2 and v3, Minisat) under `ogdf/_licenses/ogdf/`. The extension links OGDF statically, so the texts must travel with the binary.
+
+### Changed
+
+- `to_networkx` returns an undirected graph unless `directed=True` is passed. It used to read `GraphAttributes.directed`, which OGDF sets to `True` by default, so `to_networkx(g, ogdf.layout(g))` returned a `DiGraph` for an undirected graph. Changing OGDF's default instead would remove arrowheads from every default SVG and TikZ drawing.
+
+- `min_spanning_tree` uses Kruskal and returns a minimum spanning forest. OGDF's Prim started from the first node, so on a disconnected graph it covered one component; the docstring already promised a forest.
+
+- `set_seed` accepts `[-2**31, 2**32)`, and `new_seed()` returns values in `[0, 2**32)` on every platform. `set_seed` accepted int32 only, so about half of drawn seeds raised `TypeError`. OGDF's `randomSeed()` computes in `uint_fast32_t`, which is 64 bits under libstdc++, so on Linux `new_seed()` also returned values up to about `7 * 2**32`. Values outside the range raise `PreconditionError` (a `ValueError`).
+
+### Fixed
+
+- Inputs that broke an OGDF precondition now raise `PreconditionError` or `InvalidGraphError` instead of segfaulting, hanging, or returning a wrong result. OGDF checks its preconditions only in debug builds. Findings C1-C14 and P1 in `REVIEW.md` list each case; `tests/test_safety.py` covers them. The main classes:
+  - `GraphAttributes` accessors, layouts, metrics, transforms and SVG/TikZ output check the attribute flags they read. A default `GraphAttributes` segfaulted on `set_node_label`.
+
+  - A handle whose element was deleted, or whose graph was cleared or destroyed, is rejected with a `TypeError` (and a nanobind `RuntimeWarning`) instead of reading freed memory. If OGDF later reuses the address for a new element of the same kind, the old handle names that element. A side table keyed by address made array access and generators 3x slower, because each lookup missed the cache; marking the Python object invalid costs nothing per access.
+
+  - Arrays, `GraphAttributes`, and node/edge arguments from a different graph are rejected. `connected_components` with another graph's array returned 16 for a 200000-node graph and wrote out of bounds.
+
+  - `FPPLayout`, `MixedModelLayout`, `SchnyderLayout`, `DominanceLayout` and `VisibilityLayout` require a connected graph, and `validate()` reports it. `validate()` returned `[]` for inputs that then segfaulted.
+
+  - Generators validate sizes, degrees, probabilities and parity, and reject aliased graph arguments. Impossible `random_regular_graph` and `random_watts_strogatz_graph` arguments looped forever; `cube_graph(g, 40)` overflowed to 256 nodes.
+
+  - `planar_embed_planar_graph` rejects non-planar input; on K5 it added two nodes and marked the result embedded.
+
+  - `min_cost_flow` checks connectivity, bounds and supply balance, and verifies OGDF's result. OGDF's Reinelt solver reports success with zero flow on a one-edge network; that now raises `AlgorithmError`.
+
+  - `bellman_ford` no longer relaxes edges out of unreachable nodes. OGDF added edge lengths to its `INT_MAX` sentinel, which overflowed and gave every node downstream of an unreachable one a wrong distance. Lengths whose absolute sum reaches `2**31 - 1` are rejected.
+
+  - NaN weights and capacities are rejected wherever negative ones were. `PivotMDS.set_edge_costs(0)` (an endless loop) and `SugiyamaLayout.set_runs(0)` are rejected.
+
+- `make clean` deleted every `.so` under the repository, including the 241 in `.venv`. It now cleans `src/` only.
+
+- The tag trigger matched only `v*`, but every release tag so far is bare (`0.5.1`). Tag pushes never ran the publish jobs, so each release went out by manual dispatch. The trigger now matches bare tags, and `make release` creates them instead of `v`-prefixed ones. A tag that disagrees with `pyproject.toml` fails the sdist job before any wheel builds.
 
 - The two `0.5.0` strings in `docs/getting-started.md` are now `0.5.1`, and `make release` rewrites them along with `pyproject.toml`. `test_provenance_example_keys_match` compares the documented `package_version` against the installed one, so a version bump that touches only `pyproject.toml` fails every wheel job at the cibuildwheel test step - after the wheels have already been built.
 

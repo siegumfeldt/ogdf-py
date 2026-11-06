@@ -202,11 +202,13 @@ def fill_edge_array(
 def _fill(array, values, elements, keys, default_key, what):
     elements = list(elements)
     if isinstance(values, Mapping):
-        key_of: Callable[[Any], Hashable] = (
-            default_key if keys is None else keys.__getitem__
-        )
         for element in elements:
-            key = key_of(element)
+            if keys is None:
+                key = default_key(element)
+            elif element in keys:
+                key = keys[element]
+            else:
+                continue  # unmapped: keep the array's current value
             if key in values:
                 array[element] = values[key]
         return array
@@ -326,16 +328,17 @@ def to_networkx(
     attributes: Any = None,
     *,
     keys: Mapping[Any, Hashable] | None = None,
-    directed: bool | None = None,
+    directed: bool = False,
     multigraph: bool | None = None,
 ) -> Any:
     """Convert an OGDF graph to a NetworkX graph.
 
     Nodes are named by `node.index`, or by `keys` if a `Node`-to-key mapping is
-    given. The NetworkX class is chosen to be lossless by default: directed
-    when `attributes.directed` is set (or when `directed=True` is passed), and a
-    multigraph whenever the graph actually has parallel edges or self-loops, so
-    the edge count always survives the round trip. Both choices can be forced.
+    given. The result is undirected unless `directed=True`. Directedness is not
+    read from `attributes.directed`: OGDF sets that flag by default, so it does
+    not say whether the graph is meant as directed. The result is a multigraph
+    whenever the graph has parallel edges or self-loops, so the edge count
+    survives the round trip; `multigraph` forces either choice.
 
     When `attributes` is given, each node gets `x`, `y`, `width` and `height`
     attributes from the layout, plus `label` if the `NODE_LABEL` flag is
@@ -349,8 +352,6 @@ def to_networkx(
     >>> pos = {n: (d["x"], d["y"]) for n, d in h.nodes(data=True)}  # doctest: +SKIP
     """
     nx = _require_networkx()
-    if directed is None:
-        directed = bool(attributes.directed) if attributes is not None else False
     if multigraph is None:
         multigraph = not _core.is_simple_undirected(graph)
 

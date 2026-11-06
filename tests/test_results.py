@@ -76,7 +76,7 @@ def test_bellman_ford_handles_negative_lengths():
     g, m = ogdf.from_edges([("a", "b"), ("b", "c"), ("a", "c")])
     length = ogdf.EdgeArrayInt(g, 0)
     ogdf.fill_edge_array(length, [2, -1, 5], g)
-    paths = ogdf.shortest_paths(g, m["a"], length)
+    paths = ogdf.shortest_paths(g, m["a"], length, directed=True)
     assert paths.algorithm == "bellman_ford"  # chosen automatically
     assert paths.distance(m["c"]) == 1.0
     assert paths.nodes_to(m["c"]) == [m["a"], m["b"], m["c"]]
@@ -94,7 +94,7 @@ def test_negative_cycle_raises_rather_than_returning_nonsense():
     g, m = ogdf.from_edges([("a", "b"), ("b", "a")])
     length = ogdf.EdgeArrayInt(g, -1)
     with pytest.raises(ogdf.AlgorithmError, match="negative cycle"):
-        ogdf.shortest_paths(g, m["a"], length, algorithm="bellman_ford")
+        ogdf.shortest_paths(g, m["a"], length, directed=True, algorithm="bellman_ford")
 
 
 def test_bellman_ford_rejects_float_weights_with_an_explanation():
@@ -177,13 +177,14 @@ def test_cut_reports_value_and_edges():
 def test_cut_value_matches_max_flow_by_duality():
     g = ogdf.Graph()
     with ogdf.seeded(5):
-        ogdf.random_digraph(g, 25, 60)
+        ogdf.random_digraph(g, 25, 0.3)
     nodes = list(g.nodes())
     source, sink = nodes[0], nodes[-1]
     capacity = ogdf.EdgeArrayDouble(g, 1.0)
 
     flow = ogdf.EdgeArrayDouble(g)
     value = ogdf.max_flow(g, capacity, source, sink, flow)
+    assert value > 0  # a zero flow would make the duality check trivial
     cut = ogdf.min_st_cut(g, capacity, source, sink, directed=True)
     assert cut.value == pytest.approx(value)
 
