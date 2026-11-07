@@ -141,8 +141,14 @@ void register_layouts(nb::module_& m) {
              },
              
              "graph_attributes"_a, "Compute a force-directed (FMMM) layout.")
-        .def("call", [](FMMMLayout& f, GraphAttributes& ga, EdgeArray<double>& edge_lengths) { f.call(ga, edge_lengths);},
-            "graph_attributes"_a, "edge_lengths"_a)
+        .def("call",
+             [](FMMMLayout& f, GraphAttributes& ga, EdgeArray<double>& edge_lengths) {
+                 ogdfpy::require_graphics(g, "FMMMLayout");
+                 f.call(ga, edge_lengths);
+             },
+             
+             "graph_attributes"_a, "edge_lengths"_a,
+             "Compute a force-directed (FMMM) layout with preferred edge length.")
         .def("set_unit_edge_length",
              [](FMMMLayout& f, double x) { f.unitEdgeLength(x); }, "value"_a)
         .def("set_use_high_level_options",
